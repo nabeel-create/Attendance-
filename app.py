@@ -16,7 +16,7 @@ st.title("Student Attendance System")
 menu = ["Register Student", "Mark Attendance", "View Records"]
 choice = st.sidebar.selectbox("Menu", menu)
 
-# Function to calculate Mean Squared Error between two images
+# Function: Mean Squared Error for approximate matching
 def mse(imageA, imageB):
     arrA = np.array(imageA).astype("float")
     arrB = np.array(imageB).astype("float")
@@ -55,13 +55,13 @@ elif choice == "Mark Attendance":
         if uploaded_image:
             pil_uploaded = Image.open(BytesIO(uploaded_image.read())).convert("RGB")
             matched = False
-            threshold = 1000  # lower threshold = stricter match, adjust as needed
+            threshold = 2000  # Adjust this for approximate match
 
             for roll_number, name, img_path in students:
                 try:
                     pil_registered = Image.open(img_path).convert("RGB")
-                    # Resize uploaded image to match registered image
                     pil_uploaded_resized = pil_uploaded.resize(pil_registered.size)
+
                     error = mse(pil_registered, pil_uploaded_resized)
 
                     if error < threshold:
