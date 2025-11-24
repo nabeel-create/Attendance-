@@ -1,5 +1,5 @@
 streamlit>=1.20
-opencv-python
+opencv-contrib-python
 Pillow
 numpy
 pandas
