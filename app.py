@@ -1,12 +1,10 @@
+import os
+from datetime import date
+from io import BytesIO
 import streamlit as st
 from db import init_db, add_student, get_students, mark_attendance, get_attendance_records
-from datetime import date
-import os
 from PIL import Image
-from io import BytesIOimport streamlit as st
-from db import init_db, add_student, get_students, mark_attendance, get_attendance_records
-from datetime import date
-import os
+
 
 # Initialize database and folders
 init_db()
