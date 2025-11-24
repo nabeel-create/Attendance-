@@ -16,6 +16,13 @@ st.title("Student Attendance System")
 menu = ["Register Student", "Mark Attendance", "View Records"]
 choice = st.sidebar.selectbox("Menu", menu)
 
+# Function to calculate Mean Squared Error between two images
+def mse(imageA, imageB):
+    arrA = np.array(imageA).astype("float")
+    arrB = np.array(imageB).astype("float")
+    err = np.mean((arrA - arrB) ** 2)
+    return err
+
 # ---------------- Register Student ----------------
 if choice == "Register Student":
     st.subheader("Register Student")
@@ -48,17 +55,16 @@ elif choice == "Mark Attendance":
         if uploaded_image:
             pil_uploaded = Image.open(BytesIO(uploaded_image.read())).convert("RGB")
             matched = False
+            threshold = 1000  # lower threshold = stricter match, adjust as needed
 
             for roll_number, name, img_path in students:
                 try:
                     pil_registered = Image.open(img_path).convert("RGB")
-                    # Resize webcam image to match registered image
+                    # Resize uploaded image to match registered image
                     pil_uploaded_resized = pil_uploaded.resize(pil_registered.size)
-                    uploaded_array = np.array(pil_uploaded_resized)
-                    registered_array = np.array(pil_registered)
+                    error = mse(pil_registered, pil_uploaded_resized)
 
-                    # Compare images (pixel-wise)
-                    if np.array_equal(uploaded_array, registered_array):
+                    if error < threshold:
                         mark_attendance(roll_number, str(date.today()), "Present")
                         st.success(f"Attendance marked for {name} ({roll_number})")
                         matched = True
