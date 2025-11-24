@@ -1,60 +1,56 @@
-# db.py
 import sqlite3
-from datetime import datetime
-from typing import List, Tuple
 
-DB_PATH = "attendance.db"
+DB_NAME = "attendance_records.db"
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
+    # Create students table
     c.execute('''
         CREATE TABLE IF NOT EXISTS students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            roll TEXT UNIQUE,
+            roll_number TEXT PRIMARY KEY,
             name TEXT,
             image_path TEXT
         )
     ''')
+    # Create attendance table
     c.execute('''
         CREATE TABLE IF NOT EXISTS attendance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            roll TEXT,
-            name TEXT,
+            roll_number TEXT,
+            date TEXT,
             status TEXT,
-            timestamp TEXT
+            FOREIGN KEY(roll_number) REFERENCES students(roll_number)
         )
     ''')
     conn.commit()
     conn.close()
 
-def add_student(roll: str, name: str, image_path: str):
-    conn = sqlite3.connect(DB_PATH)
+def add_student(roll_number, name, image_path):
+    conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute('INSERT OR REPLACE INTO students (roll, name, image_path) VALUES (?, ?, ?)', (roll, name, image_path))
+    c.execute("INSERT INTO students (roll_number, name, image_path) VALUES (?, ?, ?)", (roll_number, name, image_path))
     conn.commit()
     conn.close()
 
-def get_students() -> List[Tuple]:
-    conn = sqlite3.connect(DB_PATH)
+def get_students():
+    conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute('SELECT roll, name, image_path FROM students ORDER BY roll')
-    rows = c.fetchall()
+    c.execute("SELECT * FROM students")
+    data = c.fetchall()
     conn.close()
-    return rows
+    return data
 
-def add_attendance(roll: str, name: str, status: str):
-    ts = datetime.now().isoformat(timespec='seconds')
-    conn = sqlite3.connect(DB_PATH)
+def mark_attendance(roll_number, date, status):
+    conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute('INSERT INTO attendance (roll, name, status, timestamp) VALUES (?, ?, ?, ?)', (roll, name, status, ts))
+    c.execute("INSERT INTO attendance (roll_number, date, status) VALUES (?, ?, ?)", (roll_number, date, status))
     conn.commit()
     conn.close()
 
-def get_attendance(limit=500):
-    conn = sqlite3.connect(DB_PATH)
+def get_attendance_records():
+    conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute('SELECT roll, name, status, timestamp FROM attendance ORDER BY timestamp DESC LIMIT ?', (limit,))
-    rows = c.fetchall()
+    c.execute("SELECT * FROM attendance")
+    data = c.fetchall()
     conn.close()
-    return rows
+    return data
