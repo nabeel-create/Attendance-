@@ -1,89 +1,66 @@
 # face_utils.py
-import cv2
-import os
+import face_recognition
 import numpy as np
+import os
 from typing import Optional, Tuple
 
-CASCADE_PATH = os.path.join("models", "haarcascade_frontalface_default.xml")
 STUDENTS_DIR = "students"
-RECOGNIZER_DIR = "recognizer"
-RECOGNIZER_PATH = os.path.join(RECOGNIZER_DIR, "lbph_model.yml")
-LABELS_PATH = os.path.join(RECOGNIZER_DIR, "labels.npy")
+ENCODINGS_DIR = "encodings"
+ENCODINGS_PATH = os.path.join(ENCODINGS_DIR, "encodings.npy")
+ROLLS_PATH = os.path.join(ENCODINGS_DIR, "rolls.npy")
 
 os.makedirs(STUDENTS_DIR, exist_ok=True)
-os.makedirs(RECOGNIZER_DIR, exist_ok=True)
+os.makedirs(ENCODINGS_DIR, exist_ok=True)
 
-# Load Haar cascade
-face_cascade = cv2.CascadeClassifier(CASCADE_PATH)
-
-# Create LBPH recognizer (opencv-contrib required)
-recognizer = cv2.face.LBPHFaceRecognizer_create()
-
-def detect_face_from_image(image_bgr: np.ndarray) -> Optional[np.ndarray]:
-    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(80,80))
-    if len(faces) == 0:
-        return None
-    x, y, w, h = faces[0]
-    return gray[y:y+h, x:x+w]
-
-def save_student_image(roll: str, image_bgr: np.ndarray) -> str:
-    face = detect_face_from_image(image_bgr)
-    if face is None:
-        raise ValueError("No face detected in the uploaded image.")
+def save_student_image(roll: str, image_rgb) -> str:
+    """Save student image as JPG"""
     existing = [f for f in os.listdir(STUDENTS_DIR) if f.startswith(f"{roll}_")]
     idx = len(existing) + 1
     path = os.path.join(STUDENTS_DIR, f"{roll}_{idx}.jpg")
-    cv2.imwrite(path, face)
+    image_rgb.save(path)
     return path
 
-def train_recognizer():
-    images = []
-    labels = []
-    label_map = {}
-    next_label = 0
+def train_encodings():
+    """Compute encodings for all students and save them"""
+    encodings = []
+    rolls = []
     for fname in os.listdir(STUDENTS_DIR):
-        if not fname.lower().endswith(('.jpg', '.jpeg', '.png')):
+        if not fname.lower().endswith(('.jpg','.png','.jpeg')):
             continue
         roll = fname.split("_")[0]
-        if roll not in label_map:
-            label_map[roll] = next_label
-            next_label += 1
         path = os.path.join(STUDENTS_DIR, fname)
-        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-        if img is None:
+        img = face_recognition.load_image_file(path)
+        face_locations = face_recognition.face_locations(img)
+        if len(face_locations) == 0:
             continue
-        images.append(img)
-        labels.append(label_map[roll])
-    if len(images) == 0:
-        raise ValueError("No student images to train on. Register at least one student.")
-    recognizer.train(images, np.array(labels))
-    recognizer.save(RECOGNIZER_PATH)
-    rev = {v:k for k,v in label_map.items()}
-    max_label = max(rev.keys())
-    arr = ["" for _ in range(max_label+1)]
-    for k, v in rev.items():
-        arr[k] = v
-    np.save(LABELS_PATH, np.array(arr))
+        face_encoding = face_recognition.face_encodings(img, known_face_locations=face_locations)[0]
+        encodings.append(face_encoding)
+        rolls.append(roll)
+    if len(encodings) == 0:
+        raise ValueError("No student faces found to train.")
+    np.save(ENCODINGS_PATH, encodings)
+    np.save(ROLLS_PATH, rolls)
     return True
 
-def load_recognizer() -> bool:
-    if not os.path.exists(RECOGNIZER_PATH) or not os.path.exists(LABELS_PATH):
-        return False
-    recognizer.read(RECOGNIZER_PATH)
-    return True
+def load_encodings() -> Tuple[list, list]:
+    if not os.path.exists(ENCODINGS_PATH) or not os.path.exists(ROLLS_PATH):
+        return [], []
+    encodings = np.load(ENCODINGS_PATH, allow_pickle=True)
+    rolls = np.load(ROLLS_PATH, allow_pickle=True)
+    return encodings.tolist(), rolls.tolist()
 
-def predict_face(image_bgr: np.ndarray, threshold: float = 80.0) -> Tuple[Optional[str], Optional[float]]:
-    face = detect_face_from_image(image_bgr)
-    if face is None:
-        return None, None
-    if not load_recognizer():
-        return None, None
-    lbl, conf = recognizer.predict(face)
-    labels = np.load(LABELS_PATH, allow_pickle=True)
-    if lbl < 0 or lbl >= len(labels):
-        return None, None
-    roll = labels[lbl].item()
-    if conf <= threshold:
-        return roll, float(conf)
-    return None, float(conf)
+def predict_face(image_rgb, tolerance=0.5) -> Optional[str]:
+    """Return roll if face matches, else None"""
+    unknown_image = np.array(image_rgb)
+    unknown_encodings = face_recognition.face_encodings(unknown_image)
+    if len(unknown_encodings) == 0:
+        return None
+    unknown_encoding = unknown_encodings[0]
+    known_encodings, known_rolls = load_encodings()
+    if len(known_encodings) == 0:
+        return None
+    matches = face_recognition.compare_faces(known_encodings, unknown_encoding, tolerance=tolerance)
+    if True in matches:
+        idx = matches.index(True)
+        return known_rolls[idx]
+    return None
