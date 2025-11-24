@@ -1,74 +1,58 @@
-# app.py
 import streamlit as st
-from PIL import Image
+import cv2
 import numpy as np
-from db import init_db, add_student, get_students, add_attendance, get_attendance
-from face_utils import save_student_image, train_encodings, predict_face
+from db import init_db, add_student, get_students, mark_attendance, get_attendance_records
+from face_utils import encode_faces, recognize_face
+from datetime import date
+import os
 
+# Initialize DB
 init_db()
-st.set_page_config(page_title="Face Attendance", layout="wide")
-st.title("📸 Face Attendance System (face_recognition)")
 
-menu = st.sidebar.selectbox("Menu", ["Register Student", "Train Model", "Take Attendance", "Attendance Records", "Students"])
+st.title("Face Recognition Attendance System")
 
-if menu == "Register Student":
-    st.header("Register a Student")
-    roll = st.text_input("Roll Number (unique)")
-    name = st.text_input("Student Name")
-    uploaded = st.file_uploader("Upload face image (jpg/png)", type=["jpg","jpeg","png"])
+menu = ["Register Student", "Take Attendance", "View Records"]
+choice = st.sidebar.selectbox("Menu", menu)
+
+if choice == "Register Student":
+    st.subheader("Register Student")
+    roll_number = st.text_input("Roll Number")
+    name = st.text_input("Name")
+    image_file = st.file_uploader("Upload Student Image", type=["jpg", "png"])
+
     if st.button("Register"):
-        if not roll or not name or not uploaded:
-            st.warning("Fill roll, name and upload an image.")
+        if roll_number and name and image_file:
+            img_path = f"students/{roll_number}.jpg"
+            with open(img_path, "wb") as f:
+                f.write(image_file.getbuffer())
+            add_student(roll_number, name, img_path)
+            st.success(f"Student {name} registered successfully!")
         else:
-            image = Image.open(uploaded).convert("RGB")
-            path = save_student_image(roll, image)
-            add_student(roll, name, path)
-            st.success(f"Registered {name} ({roll}). Image saved: {path}")
+            st.error("Please provide all details.")
 
-if menu == "Train Model":
-    st.header("Train Face Recognition Encodings")
-    if st.button("Train"):
-        try:
-            train_encodings()
-            st.success("Training complete. Encodings saved.")
-        except Exception as e:
-            st.error(f"Training failed: {e}")
+elif choice == "Take Attendance":
+    st.subheader("Take Attendance")
+    known_encodings = encode_faces()
 
-if menu == "Take Attendance":
-    st.header("Take Attendance")
-    img_file = st.camera_input("Capture Face")
-    tolerance = st.slider("Matching tolerance (lower = stricter)", min_value=0.3, max_value=0.7, value=0.5)
-    if img_file is not None:
-        img = Image.open(img_file).convert("RGB")
-        roll = predict_face(img, tolerance=tolerance)
-        if roll is None:
-            st.error("No match found or no face detected.")
-        else:
-            students = dict((r, n) for r, n, _ in get_students())
-            name = students.get(roll, "Unknown")
-            add_attendance(roll, name, "Present")
-            st.success(f"Matched {name} ({roll}) — marked PRESENT.")
-            st.image(img, caption=f"Matched {name} ({roll})", use_column_width=True)
+    run = st.button("Start Camera")
+    FRAME_WINDOW = st.image([])
+    if run:
+        cap = cv2.VideoCapture(0)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                st.error("Failed to access camera.")
+                break
+            roll_number = recognize_face(known_encodings, frame)
+            if roll_number:
+                st.success(f"Attendance marked present for {roll_number}")
+                mark_attendance(roll_number, str(date.today()), "Present")
+            FRAME_WINDOW.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            if st.button("Stop"):
+                break
+        cap.release()
 
-if menu == "Attendance Records":
-    st.header("Attendance Records")
-    rows = get_attendance(limit=1000)
-    import pandas as pd
-    df = pd.DataFrame(rows, columns=["Roll", "Name", "Status", "Timestamp"])
-    st.dataframe(df)
-    csv = df.to_csv(index=False)
-    st.download_button("Download CSV", data=csv, file_name="attendance_records.csv", mime="text/csv")
-
-if menu == "Students":
-    st.header("Registered Students")
-    rows = get_students()
-    if len(rows) == 0:
-        st.info("No students registered yet.")
-    else:
-        import pandas as pd
-        df = pd.DataFrame(rows, columns=["Roll", "Name", "ImagePath"])
-        st.dataframe(df)
-        for roll, name, imgpath in rows:
-            from PIL import Image
-            if os.path.exists(imgpath):
-                st.image(Image.open(imgpath), caption=f"{name} ({roll})", width=150)
+elif choice == "View Records":
+    st.subheader("Attendance Records")
+    records = get_attendance_records()
+    st.table(records)
