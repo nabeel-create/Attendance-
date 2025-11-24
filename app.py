@@ -16,12 +16,16 @@ st.title("Student Attendance System")
 menu = ["Register Student", "Mark Attendance", "View Records"]
 choice = st.sidebar.selectbox("Menu", menu)
 
-# Function: Mean Squared Error for approximate matching
-def mse(imageA, imageB):
-    arrA = np.array(imageA).astype("float")
-    arrB = np.array(imageB).astype("float")
-    err = np.mean((arrA - arrB) ** 2)
-    return err
+# ---------------- Helper Function ----------------
+def compare_images_histogram(img1, img2):
+    """Compare two images using histogram similarity (0 to 1)."""
+    img1 = img1.resize(img2.size).convert("RGB")
+    hist1 = np.array(img1.histogram(), dtype=float)
+    hist2 = np.array(img2.histogram(), dtype=float)
+    hist1 /= hist1.sum()
+    hist2 /= hist2.sum()
+    similarity = np.sum(np.minimum(hist1, hist2))
+    return similarity
 
 # ---------------- Register Student ----------------
 if choice == "Register Student":
@@ -55,16 +59,13 @@ elif choice == "Mark Attendance":
         if uploaded_image:
             pil_uploaded = Image.open(BytesIO(uploaded_image.read())).convert("RGB")
             matched = False
-            threshold = 2000  # Adjust this for approximate match
+            similarity_threshold = 0.8  # 0.0-1.0, higher = stricter match
 
             for roll_number, name, img_path in students:
                 try:
                     pil_registered = Image.open(img_path).convert("RGB")
-                    pil_uploaded_resized = pil_uploaded.resize(pil_registered.size)
-
-                    error = mse(pil_registered, pil_uploaded_resized)
-
-                    if error < threshold:
+                    similarity = compare_images_histogram(pil_uploaded, pil_registered)
+                    if similarity >= similarity_threshold:
                         mark_attendance(roll_number, str(date.today()), "Present")
                         st.success(f"Attendance marked for {name} ({roll_number})")
                         matched = True
