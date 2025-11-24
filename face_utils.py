@@ -13,21 +13,18 @@ LABELS_PATH = os.path.join(RECOGNIZER_DIR, "labels.npy")
 os.makedirs(STUDENTS_DIR, exist_ok=True)
 os.makedirs(RECOGNIZER_DIR, exist_ok=True)
 
-# Load cascade (ensure file exists in models/)
+# Load Haar cascade
 face_cascade = cv2.CascadeClassifier(CASCADE_PATH)
-# Create LBPH recognizer (requires opencv-contrib in some setups but opencv-python usually provides face)
-try:
-    recognizer = cv2.face.LBPHFaceRecognizer_create()
-except Exception:
-    # fallback for systems where cv2.face isn't available
-    recognizer = None
+
+# Create LBPH recognizer (opencv-contrib required)
+recognizer = cv2.face.LBPHFaceRecognizer_create()
 
 def detect_face_from_image(image_bgr: np.ndarray) -> Optional[np.ndarray]:
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(80,80))
     if len(faces) == 0:
         return None
-    x,y,w,h = faces[0]
+    x, y, w, h = faces[0]
     return gray[y:y+h, x:x+w]
 
 def save_student_image(roll: str, image_bgr: np.ndarray) -> str:
@@ -41,14 +38,12 @@ def save_student_image(roll: str, image_bgr: np.ndarray) -> str:
     return path
 
 def train_recognizer():
-    if recognizer is None:
-        raise RuntimeError("LBPH recognizer not available in this cv2 build.")
     images = []
     labels = []
     label_map = {}
     next_label = 0
     for fname in os.listdir(STUDENTS_DIR):
-        if not fname.lower().endswith(('.jpg','.jpeg','.png')):
+        if not fname.lower().endswith(('.jpg', '.jpeg', '.png')):
             continue
         roll = fname.split("_")[0]
         if roll not in label_map:
@@ -67,14 +62,12 @@ def train_recognizer():
     rev = {v:k for k,v in label_map.items()}
     max_label = max(rev.keys())
     arr = ["" for _ in range(max_label+1)]
-    for k,v in rev.items():
+    for k, v in rev.items():
         arr[k] = v
     np.save(LABELS_PATH, np.array(arr))
     return True
 
 def load_recognizer() -> bool:
-    if recognizer is None:
-        return False
     if not os.path.exists(RECOGNIZER_PATH) or not os.path.exists(LABELS_PATH):
         return False
     recognizer.read(RECOGNIZER_PATH)
@@ -86,8 +79,7 @@ def predict_face(image_bgr: np.ndarray, threshold: float = 80.0) -> Tuple[Option
         return None, None
     if not load_recognizer():
         return None, None
-    lbl_conf = recognizer.predict(face)
-    lbl, conf = lbl_conf
+    lbl, conf = recognizer.predict(face)
     labels = np.load(LABELS_PATH, allow_pickle=True)
     if lbl < 0 or lbl >= len(labels):
         return None, None
