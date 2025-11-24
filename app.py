@@ -4,8 +4,9 @@ from datetime import date
 import os
 from PIL import Image
 import numpy as np
+from io import BytesIO
 
-# Initialize database and folder
+# Initialize DB and student folder
 init_db()
 img_folder = "students"
 os.makedirs(img_folder, exist_ok=True)
@@ -24,11 +25,15 @@ if choice == "Register Student":
 
     if st.button("Register"):
         if roll_number and name and image_file:
-            img_path = os.path.join(img_folder, f"{roll_number}.jpg")
-            with open(img_path, "wb") as f:
-                f.write(image_file.getbuffer())
-            add_student(roll_number, name, img_path)
-            st.success(f"Student {name} registered successfully!")
+            existing_students = get_students()
+            if any(roll_number == s[0] for s in existing_students):
+                st.warning(f"Student with roll number {roll_number} already exists!")
+            else:
+                img_path = os.path.join(img_folder, f"{roll_number}.jpg")
+                with open(img_path, "wb") as f:
+                    f.write(image_file.getbuffer())
+                add_student(roll_number, name, img_path)
+                st.success(f"Student {name} registered successfully!")
         else:
             st.error("Please fill all details.")
 
@@ -37,25 +42,23 @@ elif choice == "Mark Attendance":
     st.subheader("Mark Attendance")
     students = get_students()
     if not students:
-        st.warning("No registered students yet!")
+        st.warning("No registered students found!")
     else:
-        uploaded_image = st.file_uploader("Upload your photo for attendance", type=["jpg", "png"])
+        uploaded_image = st.camera_input("Capture your photo for attendance")
         if uploaded_image:
-            pil_uploaded = Image.open(uploaded_image).convert("RGB")
-            uploaded_array = np.array(pil_uploaded)
-
+            pil_uploaded = Image.open(BytesIO(uploaded_image.read())).convert("RGB")
             matched = False
+
             for roll_number, name, img_path in students:
                 try:
                     pil_registered = Image.open(img_path).convert("RGB")
+                    # Resize webcam image to match registered image
+                    pil_uploaded_resized = pil_uploaded.resize(pil_registered.size)
+                    uploaded_array = np.array(pil_uploaded_resized)
                     registered_array = np.array(pil_registered)
 
-                    # Resize uploaded image to match registered image
-                    pil_uploaded_resized = pil_uploaded.resize(pil_registered.size)
-                    uploaded_resized_array = np.array(pil_uploaded_resized)
-
-                    # Compare images
-                    if np.array_equal(registered_array, uploaded_resized_array):
+                    # Compare images (pixel-wise)
+                    if np.array_equal(uploaded_array, registered_array):
                         mark_attendance(roll_number, str(date.today()), "Present")
                         st.success(f"Attendance marked for {name} ({roll_number})")
                         matched = True
@@ -64,7 +67,7 @@ elif choice == "Mark Attendance":
                     st.error(f"Error comparing image for {name}: {e}")
 
             if not matched:
-                st.error("Uploaded photo does not match any registered student.")
+                st.error("Face does not match any registered student.")
 
 # ---------------- View Records ----------------
 elif choice == "View Records":
