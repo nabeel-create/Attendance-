@@ -1,8 +1,10 @@
 import streamlit as st
 from db import init_db, add_student, get_students, mark_attendance, get_attendance_records
-from face_utils import encode_faces, recognize_face
 from datetime import date
 import os
+from deepface import DeepFace
+import cv2
+import numpy as np
 
 # Initialize
 init_db()
@@ -34,16 +36,29 @@ if choice == "Register Student":
 # ---------------- Take Attendance ----------------
 elif choice == "Take Attendance":
     st.subheader("Take Attendance")
-    known_encodings = encode_faces()
+    students = get_students()
+    if not students:
+        st.warning("No registered students found!")
+    else:
+        uploaded_image = st.camera_input("Take Photo for Attendance")
+        if uploaded_image:
+            file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
+            img = cv2.imdecode(file_bytes, 1)
 
-    uploaded_image = st.camera_input("Take Photo for Attendance")
-    if uploaded_image:
-        roll_number = recognize_face(known_encodings, uploaded_image)
-        if roll_number:
-            mark_attendance(roll_number, str(date.today()), "Present")
-            st.success(f"Attendance marked for {roll_number}")
-        else:
-            st.error("Face not recognized. Attendance not marked.")
+            matched = False
+            for roll_number, name, img_path in students:
+                try:
+                    result = DeepFace.verify(img_path, img, enforce_detection=False)
+                    if result["verified"]:
+                        mark_attendance(roll_number, str(date.today()), "Present")
+                        st.success(f"Attendance marked for {name} ({roll_number})")
+                        matched = True
+                        break
+                except Exception as e:
+                    st.error(f"Error processing {name}: {str(e)}")
+
+            if not matched:
+                st.error("Face not recognized. Attendance not marked.")
 
 # ---------------- View Records ----------------
 elif choice == "View Records":
