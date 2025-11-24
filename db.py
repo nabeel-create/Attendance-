@@ -5,7 +5,7 @@ DB_NAME = "attendance_records.db"
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    # Table for students
+    # Students table
     c.execute('''
         CREATE TABLE IF NOT EXISTS students (
             roll_number TEXT PRIMARY KEY,
@@ -13,7 +13,7 @@ def init_db():
             image_path TEXT
         )
     ''')
-    # Table for attendance
+    # Attendance table
     c.execute('''
         CREATE TABLE IF NOT EXISTS attendance (
             roll_number TEXT,
