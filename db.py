@@ -5,7 +5,6 @@ DB_NAME = "attendance_records.db"
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    # Create students table
     c.execute('''
         CREATE TABLE IF NOT EXISTS students (
             roll_number TEXT PRIMARY KEY,
@@ -13,7 +12,6 @@ def init_db():
             image_path TEXT
         )
     ''')
-    # Create attendance table
     c.execute('''
         CREATE TABLE IF NOT EXISTS attendance (
             roll_number TEXT,
@@ -28,7 +26,8 @@ def init_db():
 def add_student(roll_number, name, image_path):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("INSERT INTO students (roll_number, name, image_path) VALUES (?, ?, ?)", (roll_number, name, image_path))
+    c.execute("INSERT INTO students (roll_number, name, image_path) VALUES (?, ?, ?)",
+              (roll_number, name, image_path))
     conn.commit()
     conn.close()
 
@@ -43,7 +42,8 @@ def get_students():
 def mark_attendance(roll_number, date, status):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("INSERT INTO attendance (roll_number, date, status) VALUES (?, ?, ?)", (roll_number, date, status))
+    c.execute("INSERT INTO attendance (roll_number, date, status) VALUES (?, ?, ?)",
+              (roll_number, date, status))
     conn.commit()
     conn.close()
 
