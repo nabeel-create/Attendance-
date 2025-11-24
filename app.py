@@ -2,11 +2,11 @@ import streamlit as st
 from db import init_db, add_student, get_students, mark_attendance, get_attendance_records
 from datetime import date
 import os
-from deepface import DeepFace
 import cv2
 import numpy as np
+from deepface import DeepFace
 
-# Initialize
+# Initialize database and folder
 init_db()
 if not os.path.exists("students"):
     os.makedirs("students")
@@ -42,6 +42,7 @@ elif choice == "Take Attendance":
     else:
         uploaded_image = st.camera_input("Take Photo for Attendance")
         if uploaded_image:
+            # Convert uploaded image to OpenCV format
             file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
             img = cv2.imdecode(file_bytes, 1)
 
